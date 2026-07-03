@@ -13,9 +13,21 @@ let productsCollection = null;
 const userStates = {};
 
 // Создаем сервер-заглушку для Render
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is running\n');
+// Создаем сервер-заглушку, который также отдает товары для сайта
+const server = http.createServer(async (req, res) => {
+    if (req.url === '/api/products') {
+        res.setHeader('Access-Control-Allow-Origin', '*'); // Разрешаем доступ с любого сайта
+        res.setHeader('Content-Type', 'application/json');
+        try {
+            const products = await productsCollection.find({}).toArray();
+            res.end(JSON.stringify(products));
+        } catch (err) {
+            res.end(JSON.stringify({ error: "Ошибка при получении товаров" }));
+        }
+    } else {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Bot is running\n');
+    }
 });
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
