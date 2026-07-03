@@ -1,0 +1,13 @@
+{
+  "name": "ceramica-bot",
+  "version": "1.0.0",
+  "description": "Admin bot for Astana Ceramica Gallery",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "mongodb": "^6.5.0"
+  }
+}
