@@ -4,7 +4,7 @@ const http = require('http');
 
 // Обновленный токен и твоя база данных
 const token = '8774614622:AAG1gYJ_UDdHn5zllst-gtLdNRPr_aHyXOM';
-const mongoUri = "mongodb+srv://zhementikovzh_db_user:Astana2026@cluster0.wh83m.mongodb.net/ceramica_shop?retryWrites=true&w=majority";
+const mongoUri = "mongodb://zhementikovzh_db_user:Astana2026@cluster0-shard-00-00.wh83m.mongodb.net:27017,cluster0-shard-00-01.wh83m.mongodb.net:27017,cluster0-shard-00-02.wh83m.mongodb.net:27017/ceramica_shop?ssl=true&replicaSet=atlas-13m876-shard-0&authSource=admin&retryWrites=true&w=majority";
 const bot = new TelegramBot(token, { polling: true });
 const client = new MongoClient(mongoUri);
 
