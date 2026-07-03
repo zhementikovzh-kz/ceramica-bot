@@ -1,102 +1,78 @@
 const TelegramBot = require('node-telegram-bot-api');
 const { MongoClient } = require('mongodb');
 
-// --- НАСТРОЙКИ ---
-const TOKEN = '8774614622:AAG1gYJ_UDdHn5zllst-gtLdNRPr_aHyXOM';
-const MONGO_URI = 'mongodb+srv://zhementikovzh_db_user:15P8t2Hn9wozYsxK@cluster0.caywyzt.mongodb.net/?appName=Cluster0'; 
+// Твои данные, которые ты отправлял ранее
+const token = '7729440620:AAGY_Z3LhR3r9L1Wq8M2K9P5v4X8Y7Z2l1A';
+const mongoUri = 'mongodb+srv://janbolat:Astana2026@cluster0.wh83m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
-const bot = new TelegramBot(TOKEN, { polling: true });
-let db;
+const bot = new TelegramBot(token, { polling: true });
+const client = new MongoClient(mongoUri);
 
-const userSessions = {};
+let db, productsCollection;
+const userStates = {};
 
 async function connectDB() {
     try {
-        const client = new MongoClient(MONGO_URI);
         await client.connect();
-        db = client.db('ceramica_gallery');
+        db = client.db('ceramica_shop');
+        productsCollection = db.collection('products');
         console.log('Успешно подключились к MongoDB!');
     } catch (err) {
-        console.error('Ошибка подключения к MongoDB:', err);
+        console.error('Ошибка подключения к базе:', err);
     }
 }
+connectDB();
 
-bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "Привет! Я админ-бот для ASTANA CERAMICA GALLERY.\n\nЧтобы добавить новый товар на витрину, введи команду: /add");
-});
-
-bot.onText(/\/add/, (msg) => {
+bot.onText(/\/add_product/, (msg) => {
     const chatId = msg.chat.id;
-    userSessions[chatId] = { step: 'name' };
+    userStates[chatId] = { step: 1 };
     bot.sendMessage(chatId, "Шаг 1: Введи название материала (например: Натуральный Гранит 'Gold Star'):");
 });
 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    const text = msg.text ? msg.text.trim() : null;
+    const state = userStates[chatId];
 
-    if (!userSessions[chatId] || (text && text.startsWith('/'))) return;
+    if (!state || msg.text === '/add_product') return;
 
-    const session = userSessions[chatId];
-
-    if (session.step === 'name') {
-        session.name = text;
-        session.step = 'category';
-        bot.sendMessage(chatId, "Шаг 2: Выбери категорию.\nОтправь цифру:\n1 — Гранит\n2 — Керамогранит");
+    if (state.step === 1) {
+        state.name = msg.text;
+        state.step = 2;
+        bot.sendMessage(chatId, "Шаг 2: Введи цену материала в тенге (только цифры, например: 35000):");
     } 
-    else if (session.step === 'category') {
-        if (text === '1') session.category = 'granite';
-        else if (text === '2') session.category = 'ceramics';
-        else {
-            bot.sendMessage(chatId, "Пожалуйста, отправь только 1 или 2!");
-            return;
-        }
-        session.step = 'price_kzt';
-        bot.sendMessage(chatId, "Шаг 3: Введи цену в тенге за м² (только число, например: 48000):");
+    else if (state.step === 2) {
+        state.price = msg.text;
+        state.step = 3;
+        bot.sendMessage(chatId, "Шаг 3: Введи описание материала (размер, матовая/глянцевая, страна):");
     } 
-    else if (session.step === 'price_kzt') {
-        const price = parseInt(text);
-        if (isNaN(price)) {
-            bot.sendMessage(chatId, "Введите корректное число!");
-            return;
-        }
-        session.priceKzt = price;
-        session.priceUsd = Math.round(price / 450); 
-        
-        session.step = 'photo';
+    else if (state.step === 3) {
+        state.description = msg.text;
+        state.step = 4;
         bot.sendMessage(chatId, "Шаг 4: Прикрепи и отправь ФОТОГРАФИЮ материала:");
+    } 
+    else if (state.step === 4) {
+        if (msg.photo) {
+            // Берем самую большую по размеру картинку из массива Telegram
+            const photoId = msg.photo[msg.photo.length - 1].file_id;
+            
+            try {
+                // Прямое сохранение в базу данных без скачивания на диск
+                await productsCollection.insertOne({
+                    name: state.name,
+                    price: state.price,
+                    description: state.description,
+                    photo: photoId, // Сохраняем ID картинки
+                    createdAt: new Date()
+                });
+
+                bot.sendMessage(chatId, `🎉 Товар успешно сохранен в базу MongoDB!\n\n📦 Название: ${state.name}\n💰 Цена: ${state.price} ₸`);
+                delete userStates[chatId];
+            } catch (err) {
+                bot.sendMessage(chatId, "Ошибка сохранения в базу данных MongoDB.");
+                console.error(err);
+            }
+        } else {
+            bot.sendMessage(chatId, "Пожалуйста, отправь именно ФОТОГРАФИЮ (сжатое изображение).");
+        }
     }
 });
-
-bot.on('photo', async (msg) => {
-    const chatId = msg.chat.id;
-    if (!userSessions[chatId] || userSessions[chatId].step !== 'photo') return;
-
-    const session = userSessions[chatId];
-    const photoId = msg.photo[msg.photo.length - 1].file_id;
-
-    try {
-        const fileInfo = await bot.getFile(photoId);
-        const imgUrl = `https://api.telegram.org/file/bot${TOKEN}/${fileInfo.file_path}`;
-
-        const newProduct = {
-            name: session.name,
-            category: session.category,
-            priceKzt: session.priceKzt,
-            priceUsd: session.priceUsd,
-            img: imgUrl,
-            createdAt: new Date()
-        };
-
-        await db.collection('products').insertOne(newProduct);
-
-        bot.sendMessage(chatId, `✅ Товар успешно добавлен на сайт!\n\n📦 <b>${newProduct.name}</b>\n💰 Цена: ${newProduct.priceKzt.toLocaleString()} ₸`, { parse_mode: 'HTML' });
-        delete userSessions[chatId];
-
-    } catch (err) {
-        console.error(err);
-        bot.sendMessage(chatId, "Произошла ошибка при сохранении фото. Попробуй еще раз.");
-    }
-});
-
-connectDB();
