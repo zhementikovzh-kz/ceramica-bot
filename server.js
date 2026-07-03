@@ -1,8 +1,9 @@
 const TelegramBot = require('node-telegram-bot-api');
 const { MongoClient } = require('mongodb');
-const http = require('http'); // Добавляем модуль для порта Render
+const http = require('http');
 
-const token = '7729440620:AAGY_Z3LhR3r9L1Wq8M2K9P5v4X8Y7Z2l1A';
+// Обновленный токен и твоя база данных
+const token = '8774614622:AAG1gYJ_UDdHn5zllst-gtLdNRPr_aHyXOM';
 const mongoUri = 'mongodb+srv://janbolat:Astana2026@cluster0.wh83m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
 const bot = new TelegramBot(token, { polling: true });
@@ -12,17 +13,17 @@ let db = null;
 let productsCollection = null;
 const userStates = {};
 
-// 1. Создаем простейший сервер, чтобы Render не выдавал ошибку "No open ports detected"
+// Создаем сервер-заглушку для Render
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running\n');
 });
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-    console.log(`Сервер заглушка слушает порт ${PORT}`);
+    console.log(`Сервер-заглушка слушает порт ${PORT}`);
 });
 
-// 2. Подключаемся к базе данных
+// Подключаемся к базе данных
 async function connectDB() {
     try {
         await client.connect();
@@ -47,7 +48,6 @@ bot.on('message', async (msg) => {
 
     if (!state || msg.text === '/add_product') return;
 
-    // ЗАЩИТА: Если база еще не прогрузилась, не даем упасть серверу
     if (!productsCollection) {
         bot.sendMessage(chatId, "⏳ Подожди секунду, база данных еще подключается. Попробуй отправить сообщение снова.");
         return;
@@ -84,7 +84,7 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(chatId, `🎉 Товар успешно сохранен в базу MongoDB!\n\n📦 Название: ${state.name}\n💰 Цена: ${state.price} ₸`);
                 delete userStates[chatId];
             } catch (err) {
-                bot.sendMessage(chatId, "Ошибка сохранения в базу данных MongoDB.");
+                bot.sendMessage(chatId, "Ошибка保存 в базу данных MongoDB.");
                 console.error(err);
             }
         } else {
